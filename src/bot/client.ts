@@ -1,5 +1,5 @@
 // src/bot/client.ts
-import { Client, GatewayIntentBits, Message } from "discord.js";
+import { Client, GatewayIntentBits, Message, ButtonInteraction } from "discord.js";
 import { config } from "../config";
 import { logger } from "../utils/logger";
 import { TextChannel } from "discord.js";
@@ -10,6 +10,7 @@ import { handleCloseLobby } from "./commands/closeLobby";
 
 // 🏆 Турнирные команды
 import { handleOpenRegistration } from "./commands/openRegistration";
+import { showCreateTeamModal } from "./interactions/registerModal";
 import { handleRegisterSubmit } from "./interactions/registerSubmit";
 import { handleShowTeams } from "./commands/showTeams";
 import { handleCloseRegistration } from "./commands/closeRegistration";
@@ -18,9 +19,18 @@ import { handleDeleteTeam } from "./commands/deleteTeam";
 import { handleCloseTournament } from "./commands/closeTournament";
 import { handleRegisterButton } from "./interactions/registerModal";
 import { handleForceCloseLobbies } from "./commands/forceCloseLobbies";
+import { handleRegister } from "./commands/register";
+import { handleCreateTeam } from "./commands/createTeam";
+import { handleInvitePlayer } from "./commands/invitePlayer";
+import { handleMyTeam, handleMyTeamInteraction } from "./commands/myTeam";
+import { handleDebugTeams } from "./commands/debugTeams";
+import { handleResetTeam } from "./commands/resetTeam";
+import { handleInviteInteraction } from "./interactions/teamInvite";
+import { handleSelectExistingTeam } from "./interactions/registerSelect";
+import { handleConfirmTeamRegistration } from "./interactions/registerConfirm";
 
 export class DiscordBot {
-  private client: Client;
+  client: Client;
   private prefix: string;
 
   constructor() {
@@ -58,11 +68,33 @@ export class DiscordBot {
           return;
         }
 
+        if (interaction.isSelectMenu() && interaction.customId === "select_existing_team") {
+          await handleSelectExistingTeam(interaction);
+          return;
+        }
+
+        if (interaction.isButton() && interaction.customId.startsWith("confirm_team_")) {
+          await handleConfirmTeamRegistration(interaction);
+          return;
+        }
+
+        if (interaction.isButton() && interaction.customId === "cancel_register") {
+          await interaction.reply({ content: "❌ Регистрация отменена.", ephemeral: true });
+          return;
+        }
+        if (interaction.isButton() && interaction.customId === "create_new_team") {
+          await showCreateTeamModal(interaction as ButtonInteraction);
+          return;
+        }
+
         // 📝 Сабмит модалки
         if (interaction.isModalSubmit() && interaction.customId === "register_team_modal") {
           await handleRegisterSubmit(interaction);
           return;
         }
+
+        await handleMyTeamInteraction(interaction);
+        await handleInviteInteraction(interaction);
       } catch (err) {
         logger.error("❌ Error handling interaction:", err);
         if (interaction.isRepliable() && !interaction.replied) {
@@ -94,6 +126,33 @@ export class DiscordBot {
     try {
       switch (command) {
         // 🎮 Команды лобби
+        case "register":
+          await handleRegister(message);
+          break;
+
+        case "create_team":
+        case "team_create":
+          await handleCreateTeam(message, args);
+          break;
+              
+        case "invite_player":
+        case "team_invite":
+          await handleInvitePlayer(message);
+          break;
+
+        case "my_team":
+        case "team":
+          await handleMyTeam(message);
+          break;
+        
+        case "debug_teams":
+          await handleDebugTeams(message);
+          break;
+        
+        case "reset_team":
+          await handleResetTeam(message);
+          break;
+        
         case "create_lobby":
         case "create":
           await handleCreateLobby(message, args);
@@ -131,7 +190,8 @@ export class DiscordBot {
           break;
 
         case "delete_team":
-          await handleDeleteTeam(message, args);
+        case "team_delete":
+          await handleDeleteTeam(message);
           break;
         
         case "close_lobbies":

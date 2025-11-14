@@ -18,30 +18,36 @@ export class SteamPoolService {
     }
 
     logger.info(`🎮 Initializing Steam pool with ${accountNames.length} accounts...`);
-
-    for (const acc of accountNames) {
+  
+    const connectPromises = accountNames.map(async (acc) => {
       const user = process.env[`${acc.toUpperCase()}_USERNAME`];
       const pass = process.env[`${acc.toUpperCase()}_PASSWORD`];
 
       if (!user || !pass) {
         logger.warn(`⚠️ Skipping ${acc}: missing username or password`);
-        continue;
+        return null;
       }
 
       const client = new DotaClientService({
-        credentials: {
-          username: user,
-          password: pass,
-        },
+        credentials: { username: user, password: pass },
         attachTournamentHandler: false,
         accountTagOverride: acc,
       });
 
-      await client.connect();
-      this.clients.push(client);
-      logger.info(`✅ ${acc} connected to Steam and GC`);
-    }
+      try {
+        await client.connect();
+        logger.info(`✅ ${acc} connected to Steam and GC`);
+        return client;
+      } catch (err) {
+        logger.error(`❌ Failed to connect ${acc}:`, err);
+        return null;
+      }
+    });
 
+    // 🚀 ждём все подключения параллельно
+    const results = await Promise.all(connectPromises);
+    this.clients = results.filter((c): c is DotaClientService => c !== null);
+  
     logger.info(`✅ Steam pool ready (${this.clients.length} bots connected)`);
   }
 

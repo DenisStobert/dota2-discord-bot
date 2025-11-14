@@ -2,6 +2,7 @@ import { discordBot } from './bot/instance';
 import { steamPool } from './services/SteamPoolService';
 import { initDatabase, closeDatabase } from './database/db';
 import { logger } from './utils/logger';
+import { startAuthServer } from "./web/auth-server";
 
 async function main() {
   try {
@@ -16,6 +17,8 @@ async function main() {
 
     // 🤖 Запуск Discord бота
     await discordBot.start();
+
+    await startAuthServer();
 
     const shutdown = async () => {
       logger.info('Shutting down gracefully...');
